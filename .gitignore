@@ -1,0 +1,6 @@
+/xed-reader/Release
+/xed-reader/Debug
+/xed-reader/*.bmp
+/xed-reader/*.sdf
+/xed-reader/*.suo
+/xed-reader/*.user

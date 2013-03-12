@@ -28,12 +28,15 @@
 
 #ifdef _WIN32
 #define strcasecmp _stricmp
+//#define _CRT_SECURE_NO_DEPRECATE
+#define _CRT_SECURE_NO_WARNINGS
 #endif
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include "xed/xed.h"
+#include "xed/bmp.h"
 
 
 int xed_decode(const char *filename)
@@ -80,7 +83,83 @@ int xed_decode(const char *filename)
             break;
         }
 
-        if (frame.streamId == 0) { count++; }
+        if (frame.streamId == 0)
+        { 
+            // Save snapshots
+            if ((count % 30) == 0)
+            {
+                int width = frameInfo.width, height = frameInfo.height;
+
+// TODO: Remove
+width = 640; height = 480;
+
+
+#if 1
+                // Arrange 16-bit buffer
+                {
+                    int y;
+                    for (y = 0; y < height; y++)
+                    {
+                        unsigned char *p = (unsigned char *)buffer + (y * (width * 2)); 
+                        int x;
+                        for (x = 0; x < width; x++)
+                        {
+                            unsigned short v = ((unsigned short)p[0] << 8) | p[1]; // Read (big endian)
+
+                            // Mask for depth-only
+                            v &= 0x0fff;
+
+// Stretch
+if (v < 850) { v = 0; } else { v = (unsigned short)((int)(v - 850) * 4096 / (4000 - 850)); if (v >= 4096) { v = 4095; } }
+
+                            // Simple greyscale
+                            //r = g = b = (unsigned char)(v >> 4);
+
+#if 1
+                            {
+                                // Convert to RGB
+                                unsigned char r, g, b;
+
+                                //const int DEPTH_UNKNOWN = 0;
+                                //const int DEPTH_MIN = 800;  // 850;
+                                //const int DEPTH_MAX = 4100; // 4000;
+
+                                #define RGB_MAX 255
+                                #define V_MAX 4096
+                                unsigned char z = (unsigned char)(RGB_MAX * ((int)v % (V_MAX / 6)) / (V_MAX / 6));
+                                if      (v < (1 * V_MAX / 6)) { r = RGB_MAX;     g = z;           b = 0; }
+                                else if (v < (2 * V_MAX / 6)) { r = RGB_MAX - z; g = RGB_MAX;     b = 0; }
+                                else if (v < (3 * V_MAX / 6)) { r = 0;           g = RGB_MAX;     b = z; }
+                                else if (v < (4 * V_MAX / 6)) { r = 0;           g = RGB_MAX - z; b = RGB_MAX; }
+                                else if (v < (5 * V_MAX / 6)) { r = z;           g = z;           b = RGB_MAX; }
+                                else                          { r = RGB_MAX;     g = z;           b = RGB_MAX - z; }
+
+                                // Convert to RGB555
+                                v = ((unsigned short)(r >> 3) << 10) | ((unsigned short)(g >> 3) << 5) | ((unsigned short)(b >> 3) << 0);
+                            }
+#endif
+
+                            // Write back (little endian)
+                            p[0] = (unsigned char)v; p[1] = (unsigned char)(v >> 8);
+
+                            p += 2;
+
+                        }
+                    }
+                }
+
+                // Write image
+                {
+                    char filename[32];
+                    sprintf(filename, "out16-%0d.bmp", count / 30);
+                    BitmapWrite(filename, buffer, 16, width, width * 2, height);
+                }
+#endif
+
+
+            }
+            count++;
+        }
 
     }
 

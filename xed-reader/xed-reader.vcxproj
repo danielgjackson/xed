@@ -80,9 +80,11 @@
   <ItemGroup>
     <ClCompile Include="src/xed.c" />
     <ClCompile Include="src/xed_decode.c" />
+    <ClCompile Include="src\bmp.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include/xed/xed.h" />
+    <ClInclude Include="include\xed\bmp.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

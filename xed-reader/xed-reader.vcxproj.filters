@@ -21,9 +21,15 @@
     <ClCompile Include="src/xed_decode.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\bmp.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include/xed/xed.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\xed\bmp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

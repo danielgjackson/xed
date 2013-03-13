@@ -113,7 +113,7 @@ int XedReadFileHeader(xed_reader_t *reader, xed_file_header_t *header)
 
 
 // Read a frame
-int XedReadFrame(xed_reader_t *reader, xed_stream_frame_t *frame, xed_frame_info_t *frameInfo, void *buffer, size_t bufferSize)
+int XedReadFrame(xed_reader_t *reader, xed_event_t *frame, xed_frame_info_t *frameInfo, void *buffer, size_t bufferSize)
 {
     size_t size;
 
@@ -124,7 +124,7 @@ int XedReadFrame(xed_reader_t *reader, xed_stream_frame_t *frame, xed_frame_info
 printf("<@%ld>", ftell(reader->fp));
 
     frame->streamId = fget_uint16(reader->fp);
-    frame->_packetType = fget_uint16(reader->fp);
+    frame->packetType = fget_uint16(reader->fp);
     frame->length = fget_uint32(reader->fp);
     frame->timestamp = fget_uint64(reader->fp);
     frame->_unknown1 = fget_uint32(reader->fp);
@@ -164,7 +164,7 @@ return XED_E_ABORT;
     }
 
 printf("<%d|%d=%d>", frame->length, frame->length2, size);
-printf("=%d.%d;", frame->streamId, frame->_packetType);
+printf("=%d.%d;", frame->streamId, frame->packetType);
 
     // Read buffer
     {

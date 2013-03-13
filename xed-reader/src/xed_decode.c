@@ -71,7 +71,7 @@ int xed_decode(const char *filename)
     for (;;)
     {
         int ret;
-        xed_stream_frame_t frame;
+        xed_event_t frame;
         xed_frame_info_t frameInfo;
 
         ret = XedReadFrame(reader, &frame, &frameInfo, buffer, bufferSize);
@@ -112,6 +112,9 @@ width = 640; height = 480;
 // Stretch
 if (v < 850) { v = 0; } else { v = (unsigned short)((int)(v - 850) * 4096 / (4000 - 850)); if (v >= 4096) { v = 4095; } }
 
+// Band
+//if (y < 16) { v = (unsigned short)((int)4096 * x / width); }
+
                             // Simple greyscale
                             //r = g = b = (unsigned char)(v >> 4);
 
@@ -119,6 +122,7 @@ if (v < 850) { v = 0; } else { v = (unsigned short)((int)(v - 850) * 4096 / (400
                             {
                                 // Convert to RGB
                                 unsigned char r, g, b;
+                                unsigned char z;
 
                                 //const int DEPTH_UNKNOWN = 0;
                                 //const int DEPTH_MIN = 800;  // 850;
@@ -126,13 +130,15 @@ if (v < 850) { v = 0; } else { v = (unsigned short)((int)(v - 850) * 4096 / (400
 
                                 #define RGB_MAX 255
                                 #define V_MAX 4096
-                                unsigned char z = (unsigned char)(RGB_MAX * ((int)v % (V_MAX / 6)) / (V_MAX / 6));
+
+                                z = (unsigned char)(RGB_MAX * ((int)v % (V_MAX / 6 + 1)) / (V_MAX / 6 + 1));
                                 if      (v < (1 * V_MAX / 6)) { r = RGB_MAX;     g = z;           b = 0; }
                                 else if (v < (2 * V_MAX / 6)) { r = RGB_MAX - z; g = RGB_MAX;     b = 0; }
                                 else if (v < (3 * V_MAX / 6)) { r = 0;           g = RGB_MAX;     b = z; }
                                 else if (v < (4 * V_MAX / 6)) { r = 0;           g = RGB_MAX - z; b = RGB_MAX; }
-                                else if (v < (5 * V_MAX / 6)) { r = z;           g = z;           b = RGB_MAX; }
-                                else                          { r = RGB_MAX;     g = z;           b = RGB_MAX - z; }
+                                else if (v < (5 * V_MAX / 6)) { r = z;           g = 0;           b = RGB_MAX; }
+                                //else                          { r = RGB_MAX;     g = 0;           b = RGB_MAX - z; }
+                                else                          { r = RGB_MAX;     g = z;           b = RGB_MAX; }
 
                                 // Convert to RGB555
                                 v = ((unsigned short)(r >> 3) << 10) | ((unsigned short)(g >> 3) << 5) | ((unsigned short)(b >> 3) << 0);

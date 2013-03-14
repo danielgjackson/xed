@@ -86,13 +86,9 @@ int xed_decode(const char *filename)
         if (frame.streamId == 0)
         { 
             // Save snapshots
-            if ((count % 30) == 0)
+            if ((count % 30 % 3) == 0 && frameInfo.width > 0 && frameInfo.height > 0)
             {
                 int width = frameInfo.width, height = frameInfo.height;
-
-// TODO: Remove
-width = 640; height = 480;
-
 
 #if 1
                 // Arrange 16-bit buffer

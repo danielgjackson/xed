@@ -82,11 +82,6 @@ int XedCloseReader(xed_reader_t *reader)
 // Read the file header
 int XedReadFileHeader(xed_reader_t *reader, xed_file_header_t *header)
 {
-    uint32_t _version;          // @ 8 (version?) = 3
-    uint32_t _numStreams;       // @12 (number of streams?) = 5
-    uint64_t _indexFileOffset;  // @16 File offset of xed_index_location_t;
-                                // @24 <end>, followed by:
-
     if (reader == NULL) { return XED_E_POINTER; }
     if (reader->fp == NULL) { return XED_E_NOT_VALID_STATE; }
     if (header == NULL) { return XED_E_POINTER; }
@@ -161,7 +156,7 @@ return XED_E_ABORT;
         frameInfo->sequenceNumber = fget_uint32_be(reader->fp);
         frameInfo->_unknown5 = fget_uint32_be(reader->fp);
         frameInfo->timestamp = fget_uint32_be(reader->fp);
-    }
+    } else { memset(frameInfo, 0, sizeof(xed_frame_info_t)); }
 
 printf("<%d|%d=%d>", frame->length, frame->length2, size);
 printf("=%d.%d;", frame->streamId, frame->packetType);

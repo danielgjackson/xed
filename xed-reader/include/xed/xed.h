@@ -128,7 +128,6 @@ typedef struct
     uint8_t payload[];                 // @24/48 ? Usually none, but on trimmed file saw length=8 payload with: dword:0x00030178,dword:0x01000000; or word:376,word:3,word:0;word:256]
 } xed_event_empty_t;
 
-
 // Frame information (24 bytes)
 typedef struct
 {
@@ -200,20 +199,23 @@ typedef struct
     uint32_t maxIndexEntries;   // @ 16 max entries per index = 1024
     uint32_t numIndexes;        // @ 20 number of indexes = 3 / 1 / 1 / 1 / 1
 
-    uint64_t fileOffsetEvent0;  // @ 24 File offset of xed_event_initial_t (e.g. = 0x0018 / 0x016c / 0x02c0 / 0x0414 / 0x0568  <+=340>)
-    uint32_t _unknown6;         // @ 32 = 0 
-    uint32_t _unknown7;         // @ 36 = 0 
-    uint32_t _unknown8;         // @ 40 ? Size of xed_initial_data_t? (= 292)
-    uint32_t _unknown9;         // @ 44 ? Size of xed_initial_data_t? (= 292)
+    xed_index_entry_t event0;   // @ 24 Index entry for event 0 (xed_initial_data_t) information
+    // -  uint64_t fileOffsetEvent0;  // @ 24 File offset of xed_event_initial_t (e.g. = 0x0018 / 0x016c / 0x02c0 / 0x0414 / 0x0568  <+=340>)
+    // -  uint64_t _timestampEvent0;  // @ 32 ? (guess) Timestamp of event 0 = 0 
+    // -  uint32_t _lengthEvent0;    // @ 40 ? Size of xed_initial_data_t? (= 292)
+    // -  uint32_t payloadEvent0;     // @ 44 Payload size of event 0 (size of xed_initial_data_t) (= 292)
 
-    uint64_t fileOffsetEvent1;  // @ 48 File offset of xed_event_empty_t (e.g. = 0x0154 / 0x02a8 / 0x03fc / 0x0550 / 0x06a4  <+=340>)
-    uint32_t _unknown10;        // @ 56 = 0 
-    uint32_t _unknown11;        // @ 60 = 0 
-    uint32_t _unknown12;        // @ 64 (=9280 in trimmed file for stream 1)
-    uint32_t _unknown13;        // @ 68 (=94 in trimmed file) 
+    xed_index_entry_t event1;   // @ 48 Index entry for event 1 (xed_event_empty_t) information
+    // -  uint64_t fileOffsetEvent1;  // @ 48 File offset of xed_event_empty_t (e.g. = 0x0154 / 0x02a8 / 0x03fc / 0x0550 / 0x06a4  <+=340>)
+    // -  uint64_t _timestampEvent1;  // @ 56 ? (guess) Timestamp of event 1 = 0 
+    // -  uint32_t _lengthEvent1;    // @ 64 (=9280 in trimmed file for stream 1 - actual size 94 as below)
+    // -  uint32_t payloadEvent1;     // @ 68 Payload size of event 1 (=94 in trimmed file) 
 
-    //uint8_t  _unknown14[2][24];  // @ 72 <usually 2 * 24 = 48, but 1 * 24 = 24 bytes seen in a trimmed stream channel 1>
-    //uint8_t  _unknown15[2][24];  // @~120 <usually 2 * 24 = 48, but 1 * 24 = 24 bytes seen in a trimmed stream channel 1>
+    uint8_t _unknownEvent0;     // @72
+    uint8_t _unknownEvent1;     // @96
+
+    //xed_frame_info_t _frameInfoEvent0;     // @120 <only if extraPerIndexEntry=24, missing if =0 >
+    //xed_frame_info_t _frameInfoEvent1;     // @148 <only if extraPerIndexEntry=24, missing if =0 >
 
     //uint64_t _fileOffsetIndex[numIndexes];// @~168 <@120 in trimmed> (numIndexes *) File offset of xed_index_t structures (e.g. = 0x4c098c2c / 0x4c0991e4 / 0x4c0925c / 0x4c0992d4 / 0x4c09934c)
     //uint32_t _unknown11;        // @~192/176 ? timestamp/flags ? (e.g. = 0x8ad51914 / 0x965f0748 / 0xefc8076c / 0x3a400691 / 0x93a906b5)

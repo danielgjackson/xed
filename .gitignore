@@ -4,3 +4,7 @@
 /xed-reader/*.sdf
 /xed-reader/*.suo
 /xed-reader/*.user
+
+/xed-reader/*.csv
+
+/xed-reader/_test.cmd

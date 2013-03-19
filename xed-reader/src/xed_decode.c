@@ -44,8 +44,8 @@ int xed_decode(const char *filename)
     size_t bufferSize = 1024 * 768 * 3;
     void *buffer;
     struct xed_reader *reader;
-    xed_file_header_t header;
-    int count = 0;
+    int count0 = 0, count1 = 0;
+    int packet;
 
     // Create reader
     reader = XedNewReader(filename);
@@ -55,38 +55,60 @@ int xed_decode(const char *filename)
         return 1;
     }
 
-    // Read header
-    if (XedReadFileHeader(reader, &header) != XED_OK)
-    {
-        fprintf(stderr, "ERROR: Problem parsing header of file: %s\n", filename); 
-        XedCloseReader(reader);
-        return 2;
-    }
-
     // Allocate buffer
     buffer = malloc(bufferSize);
     if (buffer == NULL) { fprintf(stderr, "ERROR: Out of memory.\n"); XedCloseReader(reader); return -2; }
 
+printf("XED,packet,stream,type,len,time,unknown,len2"
+       ",unk1,unk2,unk3,unk4,width,height,seq,unk5,time\n");
+
     // Read packets
-    for (;;)
+    for (packet = 0; packet < XedGetNumEvents(reader, XED_STREAM_ALL); packet++)
     {
         int ret;
         xed_event_t frame;
         xed_frame_info_t frameInfo;
 
-        ret = XedReadFrame(reader, &frame, &frameInfo, buffer, bufferSize);
+        ret = XedReadEvent(reader, XED_STREAM_ALL, packet, &frame, &frameInfo, buffer, bufferSize);
         //printf("%d;", frame.streamId);
         if (ret != XED_OK)
         {
-            if (ret == XED_E_ABORT) { fprintf(stderr, "NOTE: Stopped reading file (%d frames in stream 0, %0.2fs @ 30 Hz)\n", count, count / 30.0f); }
+            if (ret == XED_E_ABORT) { fprintf(stderr, "NOTE: Stopped reading file (%d depth frames in stream 0, %0.2fs @ 30 Hz, %d color frames in stream 0, %0.2fs @ 30 Hz)\n", count0, count0 / 30.0f, count1, count1 / 30.0f); }
             else { fprintf(stderr, "ERROR: Problem reading file (%d)\n", ret); }
             break;
         }
 
-        if (frame.streamId == 0)
+//     "XED,packet,stream,flags,len,time,unknown,len2"
+printf("XED,%d    ,%u    ,%u  ,%u ,%llu,0x%08x ,%u  ", packet, frame.streamId, frame._flags, frame.length, frame.timestamp, frame._unknown1, frame.length2);
+
+if (frame.streamId != 0xffff)
+{
+//     ",unk1,unk2,unk3,unk4,width,height,seq,unk5,time"
+printf(",%u  ,%u  ,%u  ,%u  ,%u   ,%u    ,%u ,%u  ,%u  ", frameInfo._unknown1, frameInfo._unknown2, frameInfo._unknown3, frameInfo._unknown4, frameInfo.width, frameInfo.height, frameInfo.sequenceNumber, frameInfo._unknown5, frameInfo.timestamp);
+} else { printf(",,,,,,,,,"); }
+
+#if 0
+if (frame.length <= 16)
+{
+    int z;
+    printf(",");
+    for (z = 0; z < (int)frame.length; z++)
+    {
+        if (z > 0) { printf(":"); }
+        printf("%02x", ((unsigned char *)buffer)[z]);
+    }
+    if (frame.length == 16)
+    {
+        printf(",%d,%d,%d,%d", ((int16_t *)buffer)[0], ((int16_t *)buffer)[1], ((int16_t *)buffer)[2], ((int16_t *)buffer)[3]);
+    }
+}
+printf("\n");
+#endif
+
+        if (frame.length == frameInfo.width * frameInfo.height * 2)
         { 
             // Save snapshots
-            if ((count % 30 % 3) == 0 && frameInfo.width > 0 && frameInfo.height > 0)
+            if ((count0 % 30) == 0 && frameInfo.width > 0 && frameInfo.height > 0)
             {
                 int width = frameInfo.width, height = frameInfo.height;
 
@@ -153,17 +175,53 @@ if (v < 850) { v = 0; } else { v = (unsigned short)((int)(v - 850) * 4096 / (400
                 // Write image
                 {
                     char filename[32];
-                    sprintf(filename, "out16-%0d.bmp", count / 30);
+                    sprintf(filename, "out16-%0d.bmp", count0 / 30);
                     BitmapWrite(filename, buffer, 16, width, width * 2, height);
                 }
 #endif
 
 
             }
-            count++;
+            count0++;
+        }
+        else if (frame.length == frameInfo.width * frameInfo.height * 1)        // Colour data might be RGBX bayer pattern? (Possibly with IR data as RGBI?)
+        { 
+            // Save snapshots
+            if ((count1 % 10) == 0 && frameInfo.width > 0 && frameInfo.height > 0)
+            {
+                int width = frameInfo.width, height = frameInfo.height;
+
+                // Arrange 32-bit buffer
+                {
+                    int y;
+                    for (y = 0; y < height; y++)
+                    {
+                        uint32_t *p = (uint32_t *)buffer + (y * (width * 4)); 
+                        int x;
+                        for (x = 0; x < width; x++)
+                        {
+                            // "Swizzle" the RGBX components to XBGR
+//                            uint32_t v = *p;
+//                            *p = (v << 24) | ((v & 0xff00) << 8) | ((v >> 8) & 0xff00) | ((v >> 24) & 0xff);
+//                            p++;
+                        }
+                    }
+                }
+
+                // Write image
+                {
+                    char filename[32];
+                    sprintf(filename, "out32-%0d.bmp", count1 / 10);
+//                    BitmapWrite(filename, buffer, 32, width, width * 4, height);
+BitmapWrite(filename, buffer, 8, width, width * 1, height);
+                }
+
+            }
+            count1++;
         }
 
     }
+
 
     // Close reader
     XedCloseReader(reader);

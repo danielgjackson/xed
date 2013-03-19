@@ -52,20 +52,27 @@ struct xed_file
     union // NOT really a union, just mean "OR" in this pseudocode
     {
         xed_event_t events;                     // Stream events 
-        xed_index_t index;                      // Stream index (every 1024 events)
+        xed_stream_index_t index;               // Stream index (every 1024 events)
     } packets[];                                //
 
-    xed_index_t closingIndexes[numStreams];     // Closing index for each stream (they probably wouldn't be in this order if a stream index had been emitted with no further stream events after it)
+    xed_stream_index_t closingIndexes[numStreams]; // Closing index for each stream (they probably wouldn't be in this order if a stream index had been emitted with no further stream events after it)
 
     xed_end_file_info_t endOfFileInformation;   // Data about number of streams - for each stream, the file offsets of the indexes (and each index contains the file offset of every frame, including the initial two)
 };
 */
 
+// Ticks per second (event times and frame times)
+#define XED_EVENT_TICKS_PER_SECOND  1000000
+#define XED_FRAME_TICKS_PER_SECOND 50000000
+
+// Maximum number of streams in a file (indexed 0 to XED_MAX_STREAMS-1)
+#define XED_MAX_STREAMS 10
+
 
 // File header
 typedef struct
 {
-    uint8_t  tag[8];                    // @ 0 "EVENTS1\0"
+    uint8_t  fileType[8];               // @ 0 "EVENTS1\0"
     uint32_t _version;                  // @ 8 (version?) = 3
     uint32_t numStreams;                // @12 (number of streams?) = 5
     uint64_t indexFileOffset;           // @16 File offset of xed_end_file_info_t;
@@ -77,7 +84,7 @@ typedef struct
 typedef struct
 {
     uint16_t streamId;                  // @ 0 Stream ID
-    uint16_t packetType;                // @ 2 ? Packet type
+    uint16_t _flags;                    // @ 2 ? Flags
     uint32_t length;                    // @ 4 Length of payload in this event type (may also have a xed_frame_info_t before the payload)
     uint64_t timestamp;                 // @ 8 Timestamp
     uint32_t _unknown1;                 // @16 ? Unknown value
@@ -91,8 +98,8 @@ typedef struct
 typedef struct
 {
     uint16_t streamId;                  // @ 0 Stream ID (= 0/1/2/3/4)
-    uint16_t packetType;                // @ 2 ? Packet type = 0x10 [have seen 0x11 on trimmed file]
-    uint16_t _flags;                    // @ 4 ? (flags?) = 0x00/0x04/0x06/0x07/0x10
+    uint16_t _flags;                    // @ 2 ? Flags
+    uint16_t _type;                     // @ 4 ? (type of data?) = 0x00/0x04/0x06/0x07/0x10
     uint8_t  _unknown1[276];            // @ 6 ? = {0}
     uint16_t _additionalLength;         // @282 (? length of additional data structure before frame data? Same as extraPerIndexEntry field?) = 24
     uint32_t maxIndexEntries;           // @284 ? max index entries? = 1024
@@ -106,7 +113,7 @@ typedef struct
 {
     xed_event_t event;          // @ 0 Event header (24 bytes)
     // -  uint16_t streamId;           // = 0/1/2/3/4)
-    // -  uint16_t packetType;         // = 0x00
+    // -  uint16_t _flags;             // ? Flags? = 0x00
     // -  uint32_t _length;            // (length of xed_initial_data_t?) = 292
     // -  uint64_t _timestamp;         // = 0
     // -  uint32_t _unknown1;          // ? = 0x1450002d / 0x19f60033 / 0x1d580035 / 0x1f9c0037 / 0x2ae00041
@@ -120,7 +127,7 @@ typedef struct
 {
     xed_event_t event;          // @ 0 Event header (24 bytes)
     // -  uint16_t streamId;           // @ 0 Stream ID (= 0/1/2/3/4)
-    // -  uint16_t packetType;         // @ 2 ? Packet type = 0x00 [have seen 0x01 on trimmed file]
+    // -  uint16_t _flags;             // @ 2 ? Flags? = 0x00 [have seen 0x01 on trimmed file]
     // -  uint32_t _length;            // @ 4 ? length = 0 [have seen 0x08 on trimmed file]
     // -  uint64_t _timestamp;         // @ 8 ? = 0
     // -  uint32_t _unknown1;          // @16 ? value? = 1 [have seen 0x03e2007e on trimmed file]
@@ -149,7 +156,7 @@ typedef struct
 {
     xed_event_t event;          // @ 0 Event header (24 bytes)
 //    uint16_t streamId;          // @ 0 ? Stream ID = 0
-//    uint16_t _packetType;       // @ 2 ? Packet type = 0x00
+//    uint16_t _flags;            // @ 2 ? Flags = 0x00
 //    uint32_t length;            // @ 4 Length of data (e.g. = 614400, number of bytes in a 16-bit depth image at 640x480 = 640*480*2)
 //    uint64_t timestamp;         // @ 8 (e.g. = 0x00000002c1d1d500 / 0x00000002c1ea29eb / 0x00000002c2040e9e)
 //    uint32_t _unknown1;         // @16 ? value? = {0xfe, 0x4e, 0x44, 0xbc} / {0x20, 0x1e, 0x1e, 0xed} / {0x9b, 0xc3, 0x18, 0x7b} / ...
@@ -183,7 +190,7 @@ typedef struct
                                 // @24 <end>, followed by
     // xed_index_entry_t indexEntries[numEntries];
     // xed_frame_info_t frameInfo[numEntries];  // <does this depend on _additionalLength or extraPerIndexEntry?>; {0} if none (e.g. first two frames)
-} xed_index_t;
+} xed_stream_index_t;
 
 
 // Stream Information Entry [e.g. @1275696070 1 * 196-byte structure and @1275696266 4 * 180-byte structures] (Contains a pointer to last index)
@@ -202,23 +209,23 @@ typedef struct
     xed_index_entry_t event0;   // @ 24 Index entry for event 0 (xed_initial_data_t) information
     // -  uint64_t fileOffsetEvent0;  // @ 24 File offset of xed_event_initial_t (e.g. = 0x0018 / 0x016c / 0x02c0 / 0x0414 / 0x0568  <+=340>)
     // -  uint64_t _timestampEvent0;  // @ 32 ? (guess) Timestamp of event 0 = 0 
-    // -  uint32_t _lengthEvent0;    // @ 40 ? Size of xed_initial_data_t? (= 292)
+    // -  uint32_t _lengthEvent0;     // @ 40 ? Size of xed_initial_data_t? (= 292)
     // -  uint32_t payloadEvent0;     // @ 44 Payload size of event 0 (size of xed_initial_data_t) (= 292)
 
     xed_index_entry_t event1;   // @ 48 Index entry for event 1 (xed_event_empty_t) information
     // -  uint64_t fileOffsetEvent1;  // @ 48 File offset of xed_event_empty_t (e.g. = 0x0154 / 0x02a8 / 0x03fc / 0x0550 / 0x06a4  <+=340>)
     // -  uint64_t _timestampEvent1;  // @ 56 ? (guess) Timestamp of event 1 = 0 
-    // -  uint32_t _lengthEvent1;    // @ 64 (=9280 in trimmed file for stream 1 - actual size 94 as below)
+    // -  uint32_t _lengthEvent1;     // @ 64 (=9280 in trimmed file for stream 1 - actual size 94 as below)
     // -  uint32_t payloadEvent1;     // @ 68 Payload size of event 1 (=94 in trimmed file) 
 
-    uint8_t _unknownEvent0;     // @72
-    uint8_t _unknownEvent1;     // @96
+    uint8_t _unknownEvent0[24]; // @72
+    uint8_t _unknownEvent1[24]; // @96
 
     //xed_frame_info_t _frameInfoEvent0;     // @120 <only if extraPerIndexEntry=24, missing if =0 >
     //xed_frame_info_t _frameInfoEvent1;     // @148 <only if extraPerIndexEntry=24, missing if =0 >
 
-    //uint64_t _fileOffsetIndex[numIndexes];// @~168 <@120 in trimmed> (numIndexes *) File offset of xed_index_t structures (e.g. = 0x4c098c2c / 0x4c0991e4 / 0x4c0925c / 0x4c0992d4 / 0x4c09934c)
-    //uint32_t _unknown11;        // @~192/176 ? timestamp/flags ? (e.g. = 0x8ad51914 / 0x965f0748 / 0xefc8076c / 0x3a400691 / 0x93a906b5)
+    //uint64_t _fileOffsetIndex[numIndexes];// @~168 <@120 in trimmed> (numIndexes *) File offset of xed_stream_index_t structures (e.g. = 0x4c098c2c / 0x4c0991e4 / 0x4c0925c / 0x4c0992d4 / 0x4c09934c)
+    uint32_t _unknown11;        // @~192/176 ? timestamp/flags ? (e.g. = 0x8ad51914 / 0x965f0748 / 0xefc8076c / 0x3a400691 / 0x93a906b5)
                                 // @196/180 <end>
 } xed_end_stream_info_t;
 
@@ -231,7 +238,14 @@ typedef struct
 } xed_end_file_info_t;
 
 
-struct xed_reader;
+// Reader type for indexing the file
+typedef struct
+{
+    uint16_t streamId;
+    xed_index_entry_t indexEntry;
+    xed_frame_info_t frameInfo;
+} xed_index_t;
+
 
 // Return codes
 //#define XED_TRUE                1
@@ -250,11 +264,15 @@ struct xed_reader;
 #define XED_SUCCEEDED(value)    ((value) >= 0)
 #define XED_FAILED(value)       ((value) < 0)
 
+struct xed_reader;
+
+#define XED_STREAM_ALL -1
 
 struct xed_reader *XedNewReader(const char *filename);
 int XedCloseReader(struct xed_reader *reader);
-int XedReadFileHeader(struct xed_reader *reader, xed_file_header_t *header);
-int XedReadFrame(struct xed_reader *reader, xed_event_t *frame, xed_frame_info_t *frameInfo, void *buffer, size_t bufferSize);
+int XedGetNumEvents(struct xed_reader *reader, int stream);
+const xed_index_t *XedGetIndexEntry(struct xed_reader *reader, int stream, int index);
+int XedReadEvent(struct xed_reader *reader, int stream, int index, xed_event_t *frame, xed_frame_info_t *frameInfo, void *buffer, size_t bufferSize);
 
 
 #endif
